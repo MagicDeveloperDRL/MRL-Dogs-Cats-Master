@@ -2,8 +2,8 @@
 @file: DataHelper.py
 @author: MRL Liu
 @time: 2021/3/3 15:27
-@env: Python,Numpy
-@desc:本模块为数据读取模块，
+@env: Python,Numpy,TensorFlow,OpenCV-Python,matplotlib,scikit-learn
+@desc:本模块为数据读取模块，负责对数据集进行预处理
       （1）提供了读取一系列图片文件并进行预处理到DataSets对象的功能
       （2) 支持将训练数据划分为训练集和验证集。
       （2) 提供预处理图片方法、可视化读取后的图片文件数据的方法。
@@ -22,12 +22,13 @@ import random
 """图片数据集对象"""
 class DataSet(object):
     def __init__(self,images,labels,img_names,cls):
-        self._num_examples = images.shape[0] # 样本总数量
-
+        # 存储的图片相关信息
         self._images = images # 图片数据
         self._labels = labels # 图片标签（one-hot编码）
         self._img_names = img_names # 图片名称
-        self._cls = cls # 图片标签语义
+        self._cls = cls  # 图片标签语义，例如'cats','dogs',为了方便验证
+        # 分批次获取图片数据的变量
+        self._num_examples = images.shape[0]  # 样本总数量
         self._epochs_done = 0 # 所有样本被取完一遍的次数
         self._index_in_epoch = 0 # 上一批次取后的序号
     @property
@@ -52,15 +53,15 @@ class DataSet(object):
     def next_batch(self,batch_size):
         assert batch_size <= self._num_examples # 检测批次大小是否超过样本总数
 
-        start = self._index_in_epoch
+        start = self._index_in_epoch # 初始序号，从0开始
         self._index_in_epoch += batch_size
-
+        # 检测要采取的终止序号是否超过样本总数
         if self._index_in_epoch > self._num_examples:# 如果取完后的该批次大于样本总数
             self._epochs_done += 1 # 取完次数+1
             start = 0 # 从头开始数
             self._index_in_epoch = batch_size #
 
-        end = self._index_in_epoch
+        end = self._index_in_epoch # 终止序号
 
         return self._images[start:end],self._labels[start:end],self._img_names[start:end],self.cls[start:end]
 """图片全部数据集对象"""
@@ -222,16 +223,15 @@ def plot_images(images, cls_true, img_size=64, cls_pred=None, num_channels=3):
 
     plt.show()
 
-def preprocessed_image(image_path, image_size, is_imshow=False):
+def preprocessed_image(image_path, image_size):
     image = cv2.imread(image_path)  # 读取图片,返回一个三维数组：（x，y,(R,G,B)）shape:(333,500,3)
     image = cv2.resize(image, (image_size, image_size), 0, 0, cv2.INTER_LINEAR)  # 图像缩放大小 shape:(64,64,3)
     image = image.astype('float32')  # 转为浮点数
     image = np.multiply(image, 1.0 / 255.0)  # 转为小数
     image = np.array(image)
     # 是否显示转换后的数据
-    if is_imshow:
-        plt.imshow(image)
-        # print(image.shape)
+    # plt.imshow(image) #RGB值要求0-1
+    # print(image.shape)
     return image
 
 

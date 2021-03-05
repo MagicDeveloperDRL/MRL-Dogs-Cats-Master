@@ -1,8 +1,8 @@
 '''''''''
-@file: predict.py
+@file: Model_Adopter.py
 @author: MRL Liu
 @time: 2021/3/3 15:27
-@env: Python,Numpy
+@env: Python,Numpy,TensorFlow,OpenCV-Python,matplotlib,scikit-learn
 @desc:本模块为模型采用器，负责调用训练好的模型
       （1）支持基于TensorFlow搭建CNN模型
       （2) 支持基于TensorFlow训练CNN模型，支持早期终止机制、定期保存模型数据和训练日志。

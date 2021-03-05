@@ -2,8 +2,8 @@
 @file: Model_Constructor.py
 @author: MRL Liu
 @time: 2021/3/3 13:25
-@env: Python,Numpy
-@desc:本模块为模型构造器，
+@env: Python,Numpy,TensorFlow,OpenCV-Python,matplotlib,scikit-learn
+@desc:本模块为模型构造器，负责构建和训练模型
       （1）支持基于TensorFlow搭建CNN模型
       （2) 支持基于TensorFlow训练CNN模型，支持早期终止机制、定期保存模型数据和训练日志。
       （3）支持可视化训练过程中的模型的损失值、精度等变化。
