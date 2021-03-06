@@ -41,17 +41,19 @@ class Model_Constructor(object):
         self.val_loss_list = [] # 验证精度列表
         self.iter_list = [] # 迭代次数列表
 
-    def train_model(self,num_iteration,data,batch_size):
-        total_iterations = 0
+    def train_model(self,num_iteration,
+                    data,
+                    batch_size,
+                    early_stopping = None,# None 表示不使用early_stopping，若使用，可以设置为数字
+                    ):
         saver = tf.train.Saver()
         # 早期终止机制所需的变量
-        early_stopping = None
         best_val_loss = float("inf")
         patience = 0
         # 记录开始训练的时刻
         start_time = time.time()
         # 开始训练
-        for i in range(total_iterations, total_iterations + num_iteration):
+        for i in range(num_iteration):
 
             x_batch, y_true_batch, _, cls_batch = data.train.next_batch(batch_size)
             x_valid_batch, y_valid_batch, _, valid_cls_batch = data.valid.next_batch(batch_size)
@@ -60,7 +62,7 @@ class Model_Constructor(object):
             feed_dict_val = {self.x: x_valid_batch, self.y_true: y_valid_batch}
             # 执行优化器操作
             self.session.run(self.optimizer, feed_dict=feed_dict_tr)
-            # 定期检测损失
+            # 定期检测损失（使用过一遍数据集就输出）
             if i % int(data.train.num_examples / batch_size) == 0:
                 val_loss = self.session.run(self.cost, feed_dict=feed_dict_val)
                 tr_loss = self.session.run(self.cost, feed_dict=feed_dict_tr)
@@ -68,7 +70,7 @@ class Model_Constructor(object):
 
                 self.__show_pregress(epoch, feed_dict_tr, feed_dict_val, val_loss, tr_loss,i)
                 saver.save(self.session, './dogs-cats-model/dog-cat.ckpt', global_step=i)
-                # 早期终止机制
+                # 判断是否进行早期终止
                 if early_stopping:
                     if val_loss < best_val_loss:
                         best_val_loss = val_loss
@@ -78,7 +80,6 @@ class Model_Constructor(object):
                     if patience == early_stopping:
                         break
         # 计算训练花费的时间并打印
-        total_iterations += num_iteration
         end_time = time.time()
         time_dif = end_time - start_time
         print("本次训练总共花费的Time: " + str(timedelta(seconds=int(round(time_dif)))))
@@ -202,17 +203,17 @@ class Model_Constructor(object):
         # 第5、6层全连接
         fc_layer_size = 1024
         print('输入层', x_image.get_shape())  #(?, 64, 64, 3)
-        layer_conv1 = self.__create_convolutional_layer(input=x_image,
+        layer_conv1 = self.__create_conv_pool_layer(input=x_image,
                                                       num_input_channels=self.num_channels,
                                                       conv_filter_size=filter_size_conv1,
                                                       num_filters=num_filters_conv1)
         print('layer_conv1', layer_conv1.get_shape())  #(?, 32, 32, 32)
-        layer_conv2 = self.__create_convolutional_layer(input=layer_conv1,
+        layer_conv2 = self.__create_conv_pool_layer(input=layer_conv1,
                                                       num_input_channels=num_filters_conv1,
                                                       conv_filter_size=filter_size_conv2,
                                                       num_filters=num_filters_conv2)
         print('layer_conv2', layer_conv2.get_shape())  #(?, 16, 16, 32)
-        layer_conv3 = self.__create_convolutional_layer(input=layer_conv2,
+        layer_conv3 = self.__create_conv_pool_layer(input=layer_conv2,
                                                       num_input_channels=num_filters_conv2,
                                                       conv_filter_size=filter_size_conv3,
                                                       num_filters=num_filters_conv3)
@@ -239,24 +240,32 @@ class Model_Constructor(object):
     def __create_biases(self,size):
         return tf.Variable(tf.constant(0.05, shape=[size]))
 
-    def __create_convolutional_layer(self,input,
+
+    def __conv2d(self,input, weights, stride, padding='SAME'):
+        layer = tf.nn.conv2d(input=input,  # 输入的原始张量
+                             filter=weights,  # 卷积核张量，(filter_height、 filter_width、in_channels,out_channels)
+                             strides=[1, stride, stride, 1],
+                             padding=padding)
+        return layer
+
+    def __maxpool2d(self,input, stride=2,padding='SAME'):
+        layer = tf.nn.max_pool(value=input,  # 这是一个float32元素和形状的四维张量（批长度、高度、宽度和通道）
+                               ksize=[1, stride, stride, 1],  # 一个整型list，表示每个维度的窗口大小
+                               strides=[1, stride, stride, 1],  # 在每个维度上移动窗口的步长。
+                               padding=padding)  # VALID或SAME
+        return layer
+
+    def __create_conv_pool_layer(self,input,
                                    num_input_channels,
                                    conv_filter_size,
                                    num_filters):
         weights = self.__create_weights(shape=[conv_filter_size, conv_filter_size, num_input_channels, num_filters])
         biases = self.__create_biases(num_filters)
-
-        layer = tf.nn.conv2d(input=input, # 输入的原始张量
-                             filter=weights, # 卷积核张量，(filter_height、 filter_width、in_channels,out_channels)
-                             strides=[1, 1, 1, 1],
-                             padding='SAME')
-        layer += biases
-        layer = tf.nn.relu(layer)
-
-        layer = tf.nn.max_pool(value=layer,
-                               ksize=[1, 2, 2, 1],
-                               strides=[1, 2, 2, 1],
-                               padding='SAME')
+        layer = self.__conv2d(input=input, weights=weights,stride=1) # 卷积操作
+        #layer += biases # 添加偏置
+        layer =tf.nn.bias_add(layer,bias=biases)
+        layer = tf.nn.relu(layer) # 对层进行激活
+        layer = self.__maxpool2d(input=layer,stride=2) # 进行池化操作
         return layer
 
     def __create_flatten_layer(self,layer):
@@ -304,7 +313,8 @@ if __name__=='__main__':
         # 训练模型
         constructor.train_model(num_iteration = 100,# 迭代次数
                       data =data, # 训练数据
-                      batch_size = 32 # 批大小
+                      batch_size = 32, # 批大小
+                      early_stopping = 50,
                       )
         # 保存训练过程中的训练监控数据
         constructor.save_training_loss_and_accuracy(Net_Parameter_Save_Path)
